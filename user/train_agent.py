@@ -538,23 +538,42 @@ def on_combo_reward(env: WarehouseBrawl, agent: str) -> float:
     else:
         return 1.0
 
+# NEW reward function to penalize being in dangerous areas
+def edge_penalty(
+    env: WarehouseBrawl,
+) -> float:
+    """
+    Applies a penalty for being near the edges of the map.
+    """
+    player: Player = env.objects["player"]
+    pos = player.body.position
+
+    # Penalize being too far left or right
+    if pos.x > 9 or pos.x < -9:
+        return -1.0 * env.dt
+    
+    # Penalize being too low (in the pit)
+    if pos.y > 4.0:
+        return -1.0 * env.dt
+
+    return 0.0
+
+
 '''
 Add your dictionary of RewardFunctions here using RewTerms
 '''
 def gen_reward_manager():
     reward_functions = {
-        #'target_height_reward': RewTerm(func=base_height_l2, weight=0.0, params={'target_height': -4, 'obj_name': 'player'}),
-        'danger_zone_reward': RewTerm(func=danger_zone_reward, weight=0.5),
+        # Keep this for encouraging combat
         'damage_interaction_reward': RewTerm(func=damage_interaction_reward, weight=1.0),
-        #'head_to_middle_reward': RewTerm(func=head_to_middle_reward, weight=0.01),
-        #'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.05),
-        'penalize_attack_reward': RewTerm(func=in_state_reward, weight=-0.04, params={'desired_state': AttackState}),
-        'holding_more_than_3_keys': RewTerm(func=holding_more_than_3_keys, weight=-0.01),
-        #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
+        # Add the new penalty for being in dangerous positions
+        'edge_penalty': RewTerm(func=edge_penalty, weight=2.0), # A significant weight to teach avoidance
     }
     signal_subscriptions = {
+        # Massively increase the reward for winning to make it the ultimate goal
         'on_win_reward': ('win_signal', RewTerm(func=on_win_reward, weight=50)),
-        'on_knockout_reward': ('knockout_signal', RewTerm(func=on_knockout_reward, weight=8)),
+        # Massively increase the penalty for being KO'd to teach survival
+        'on_knockout_reward': ('knockout_signal', RewTerm(func=on_knockout_reward, weight=30)),
         'on_combo_reward': ('hit_during_stun', RewTerm(func=on_combo_reward, weight=5)),
         'on_equip_reward': ('weapon_equip_signal', RewTerm(func=on_equip_reward, weight=10)),
         'on_drop_reward': ('weapon_drop_signal', RewTerm(func=on_drop_reward, weight=15))
