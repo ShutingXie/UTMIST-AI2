@@ -45,8 +45,10 @@ def test_agent_batte():
     agent1_username = agent_1_path.split("/")[-2]
     agent2_username = agent_2_path.split("/")[-2]
 
-    agent1_elo = get_participant_elo(agent1_username)
-    agent2_elo = get_participant_elo(agent2_username)
+    # Only fetch/update Elo if running in the CI environment with Supabase credentials
+    if os.getenv("SUPABASE_URL"):
+        agent1_elo = get_participant_elo(agent1_username)
+        agent2_elo = get_participant_elo(agent2_username)
 
     # Dynamically import and instantiate both agents
     Agent1 = load_agent_class(agent_1_path)
@@ -69,9 +71,10 @@ def test_agent_batte():
             train_mode=True
             )
 
-    new_elo1, new_elo2 = elo_update(agent1_elo, agent2_elo, match_result.player1_result.value)
-    update_participant_elo(agent1_username, new_elo1)
-    update_participant_elo(agent2_username, new_elo2)
+    if os.getenv("SUPABASE_URL"):
+        new_elo1, new_elo2 = elo_update(agent1_elo, agent2_elo, match_result.player1_result.value)
+        update_participant_elo(agent1_username, new_elo1)
+        update_participant_elo(agent2_username, new_elo2)
 
     logger.info("Battle has completed successfully!")
     logger.info(f"{agent1_username} vs {agent2_username} - {match_result}")
