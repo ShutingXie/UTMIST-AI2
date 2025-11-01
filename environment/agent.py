@@ -596,8 +596,10 @@ def run_match(agent_1: Agent | partial,
               reward_manager: Optional[RewardManager]=None,
               train_mode=False
               ) -> MatchStats:
-    # Initialize env
+    # Import json for logging
+    import json
 
+    # Initialize env
     env = WarehouseBrawl(resolution=resolution, train_mode=train_mode)
     observations, infos = env.reset()
     obs_1 = observations[0]
@@ -614,7 +616,6 @@ def run_match(agent_1: Agent | partial,
 
     env.agent_1_name = agent_1_name
     env.agent_2_name = agent_2_name
-
 
     writer = None
     if video_path is None:
@@ -639,19 +640,33 @@ def run_match(agent_1: Agent | partial,
     # Initialize agents
     if not agent_1.initialized: agent_1.get_env_info(env)
     if not agent_2.initialized: agent_2.get_env_info(env)
-    # 596, 336
-    platform1 = env.objects["platform1"]
+
+    # Initialize battle log
+    battle_log = []
 
     for time in tqdm(range(max_timesteps), total=max_timesteps):
-      platform1.physics_process(0.05)
+      action_1 = agent_1.predict(obs_1)
+      action_2 = agent_2.predict(obs_2)
       full_action = {
-          0: agent_1.predict(obs_1),
-          1: agent_2.predict(obs_2)
+          0: action_1,
+          1: action_2
       }
 
       observations, rewards, terminated, truncated, info = env.step(full_action)
       obs_1 = observations[0]
       obs_2 = observations[1]
+
+      # Record frame data for the battle log
+      frame_data = {
+          'frame': env.steps,
+          'obs_1': obs_1.tolist(),
+          'obs_2': obs_2.tolist(),
+          'action_1': action_1.tolist(),
+          'action_2': action_2.tolist(),
+          'terminated': terminated,
+          'truncated': truncated
+      }
+      battle_log.append(frame_data)
 
       if reward_manager is not None:
           reward_manager.process(env, 1 / env.fps)
@@ -666,6 +681,13 @@ def run_match(agent_1: Agent | partial,
       if terminated or truncated:
           break
 
+    # Save the battle log to a file
+    try:
+        with open('battle_log.json', 'w') as f:
+            json.dump(battle_log, f, indent=4)
+        print("Battle log successfully saved to battle_log.json")
+    except Exception as e:
+        print(f"Error saving battle log: {e}")
 
     if video_path is not None:
         writer.close()

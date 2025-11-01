@@ -42,6 +42,12 @@ def test_agent_batte():
 
     assert agent_1_path is not None and agent_2_path is not None, "Could not find path to agents"
 
+    # Create dynamic video name from agent paths
+    agent1_script_name = os.path.splitext(os.path.basename(agent_1_path))[0]
+    agent2_script_name = os.path.splitext(os.path.basename(agent_2_path))[0]
+    video_filename = f"{agent1_script_name}_vs_{agent2_script_name}.mp4"
+    logger.info(f"Battle video will be saved to: {video_filename}")
+
     agent1_username = agent_1_path.split("/")[-2]
     agent2_username = agent_2_path.split("/")[-2]
 
@@ -62,7 +68,7 @@ def test_agent_batte():
     logger.info(f"{agent1_username} vs {agent2_username}")
     match_result = run_match(agent1_instance,
             agent_2=agent2_instance,
-            video_path=f'battle.mp4',
+            video_path=video_filename, # Use the dynamic filename
             agent_1_name='Agent 1',
             agent_2_name='Agent 2',
             resolution=CameraResolution.LOW,
