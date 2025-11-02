@@ -1,6 +1,6 @@
-
 import os
 import gdown
+import uuid  # Import the uuid library to generate unique IDs
 from typing import Optional
 
 import torch
@@ -13,9 +13,6 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 # --- Class Definitions Copied from train_agent.py ---
-# These classes define the custom model architecture. They must be included here
-# so that PPO.load() can reconstruct the model with the correct 'skeleton'.
-
 class MLPPolicy(nn.Module):
     def __init__(self, obs_dim: int = 64, action_dim: int = 10, hidden_dim: int = 64):
         super(MLPPolicy, self).__init__()
@@ -52,30 +49,32 @@ class MLPExtractor(BaseFeaturesExtractor):
 
 class SubmittedAgent(Agent):
     """
-    An agent that loads a pre-trained PPO model with a custom architecture.
+    An agent that loads a pre-trained PPO model from a public URL.
+    Each instance of the agent will download the model to a unique file path.
     """
     def __init__(self, file_path: Optional[str] = None):
+        # Generate a unique ID for this agent instance to prevent file conflicts.
+        self.agent_id = str(uuid.uuid4())
         super().__init__(file_path)
 
     def _initialize(self) -> None:
         if self.file_path is None:
-            # This path will be populated by the _gdown method in the next step of the server logic.
             pass
         else:
-            # When loading, we must provide the same policy_kwargs used during training.
-            # Using the `custom_objects` dictionary is a more robust way to handle this,
-            # as it avoids deserialization issues between different environments.
+            # Use the `custom_objects` dictionary to robustly load the model architecture.
             custom_objects = {
                 "policy_kwargs": MLPExtractor.get_policy_kwargs()
             }
             self.model = PPO.load(self.file_path, custom_objects=custom_objects)
 
     def _gdown(self) -> str:
-        data_path = "rl-model.zip"
-        if not os.path.isfile(data_path):
-            print(f"Downloading model from Google Drive: {data_path}...")
-            url = "https://drive.google.com/file/d/1DwCALcgY2ttDoscsCTcEp2DuipSvA7Jn/view?usp=sharing"
-            gdown.download(url, output=data_path, fuzzy=True)
+        # Create a unique filename for this agent instance.
+        data_path = f"rl-model-{self.agent_id}.zip"
+        
+        # Always download a fresh copy for each instance to avoid conflicts.
+        print(f"Downloading model from Google Drive to unique path: {data_path}...")
+        url = "https://drive.google.com/file/d/1DwCALcgY2ttDoscsCTcEp2DuipSvA7Jn/view?usp=sharing"
+        gdown.download(url, output=data_path, fuzzy=True)
         return data_path
 
     def predict(self, obs):
