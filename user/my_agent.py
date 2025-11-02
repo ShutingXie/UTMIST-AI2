@@ -1,90 +1,43 @@
-
 import os
-import random
+import gdown
 from typing import Optional
 from environment.agent import Agent
+from stable_baselines3 import PPO
 
 class SubmittedAgent(Agent):
     """
-    An even more advanced rule-based agent. New features:
-    - A top-priority "Survival Mode" to prevent falling off edges.
-    - It now combines horizontal movement and jumping for a much more effective recovery.
+    An agent that loads a pre-trained PPO model from a public URL.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, file_path: Optional[str] = None):
+        # The 'file_path' is provided by the environment after downloading.
+        super().__init__(file_path)
+
+    def _initialize(self) -> None:
+        """
+        This method is called by the environment to load the model.
+        """
+        # If file_path is not provided during initialization, the _gdown method will be called first.
+        # Then, this _initialize method will be called again with the path to the downloaded file.
+        if self.file_path is None:
+            # This path will be populated by the _gdown method in the next step of the server logic.
+            pass
+        else:
+            self.model = PPO.load(self.file_path)
+
+    def _gdown(self) -> str:
+        """
+        This method is called by the tournament server to download the model file.
+        """
+        data_path = "rl-model.zip"
+        if not os.path.isfile(data_path):
+            print(f"Downloading model from Google Drive: {data_path}...")
+            url = "https://drive.google.com/file/d/1DwCALcgY2ttDoscsCTcEp2DuipSvA7Jn/view?usp=sharing"
+            gdown.download(url, output=data_path, fuzzy=True)
+        return data_path
 
     def predict(self, obs):
         """
-        The agent's "brain" with a new, high-priority survival instinct.
+        Uses the loaded RL model to make a decision based on the observation.
         """
-        # === 1. OBSERVE: Get critical information from the game state ===
-        my_pos = self.obs_helper.get_section(obs, 'player_pos')
-        my_damage = self.obs_helper.get_section(obs, 'player_damage')
-        
-        opp_pos = self.obs_helper.get_section(obs, 'opponent_pos')
-        is_opp_stunned = self.obs_helper.get_section(obs, 'opponent_state') in [5, 11]
-        
-        distance_to_opp = ((my_pos[0] - opp_pos[0])**2 + (my_pos[1] - opp_pos[1])**2)**0.5
-        is_opp_close = distance_to_opp < 4.0
-
-        action = self.act_helper.zeros()
-
-        # === 2. THINK & DECIDE: A new, prioritized list of rules ===
-
-        # --- NEW: Rule 0: SURVIVAL FIRST! ---
-        # This is now the highest priority rule. If the agent is in danger of falling,
-        # it will ignore everything else and try to recover.
-        is_off_sides = my_pos[0] > 9 or my_pos[0] < -9 # Simplified horizontal check
-        is_dangerously_low = my_pos[1] > 4.0 # Check if falling deep into the pit
-
-        if is_off_sides or is_dangerously_low:
-            # Determine horizontal direction to get back to center
-            horizontal_direction_key = 'a' if my_pos[0] > 0 else 'd'
-            
-            # Focus on the core recovery action: horizontal movement and the recovery move (heavy attack).
-            # This avoids potential input conflicts between jump and heavy attack on the same frame.
-            action = self.act_helper.press_keys([horizontal_direction_key, 'k'])
-            return action # CRITICAL: Survival is the only thing that matters now.
-
-        # --- If not in danger, proceed with combat logic ---
-
-        # --- Rule 1: Punish Stunned Opponents ---
-        if is_opp_stunned and is_opp_close:
-            action = self.act_helper.press_keys(['k'])
-            return action
-
-        # --- Rule 2: Defensive Dodge ---
-        if my_damage > 100 and is_opp_close and random.random() < 0.5:
-            action = self.act_helper.press_keys(['l'])
-            return action
-
-        # --- Rule 3: On-Stage Combat Logic ---
-        
-        # 3a. Movement: Move towards the opponent
-        if (opp_pos[0] > my_pos[0]):
-            action = self.act_helper.press_keys(['d'])
-        else:
-            action = self.act_helper.press_keys(['a'])
-
-        # 3b. Jumping: Jump if the opponent is significantly above me
-        if (my_pos[1] > opp_pos[1] + 2.0):
-             action = self.act_helper.press_keys(['space'], action)
-
-        # 3c. Attacking: If close, choose an attack unpredictably
-        if is_opp_close:
-            if random.random() < 0.7:
-                action = self.act_helper.press_keys(['j'], action)
-            else:
-                action = self.act_helper.press_keys(['k'], action)
-
+        action, _ = self.model.predict(obs)
         return action
-
-    # The methods below are not used by this agent, but are required by the interface.
-    def _initialize(self) -> None:
-        pass
-    def _gdown(self) -> str:
-        pass
-    def save(self, file_path: str) -> None:
-        pass
-    def learn(self, env, total_timesteps, log_interval: int = 4):
-        pass
