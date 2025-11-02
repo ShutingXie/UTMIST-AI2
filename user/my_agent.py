@@ -62,10 +62,13 @@ class SubmittedAgent(Agent):
             # This path will be populated by the _gdown method in the next step of the server logic.
             pass
         else:
-            # When loading, we must provide the same policy_kwargs used during training
-            # to ensure the model architecture is identical.
-            policy_kwargs = MLPExtractor.get_policy_kwargs()
-            self.model = PPO.load(self.file_path, policy_kwargs=policy_kwargs)
+            # When loading, we must provide the same policy_kwargs used during training.
+            # Using the `custom_objects` dictionary is a more robust way to handle this,
+            # as it avoids deserialization issues between different environments.
+            custom_objects = {
+                "policy_kwargs": MLPExtractor.get_policy_kwargs()
+            }
+            self.model = PPO.load(self.file_path, custom_objects=custom_objects)
 
     def _gdown(self) -> str:
         data_path = "rl-model.zip"
